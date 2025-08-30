@@ -1,6 +1,22 @@
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import { OpenAIEmbeddings } from "@langchain/openai";
+import { PineconeStore } from "@langchain/pinecone";
+import { Pinecone as PineconeClient } from "@pinecone-database/pinecone";
 
+// langchain ai 
+const embeddings = new OpenAIEmbeddings({
+  model: "text-embedding-3-small"
+});
+
+const pinecone = new PineconeClient();
+
+const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME);
+
+export const vectorStore = await PineconeStore.fromExistingIndex(embeddings, {
+  pineconeIndex,
+  maxConcurrency: 5,
+});
 
 export async function indexTheDocument(filePath){
     const loader = new PDFLoader(filePath);
@@ -13,5 +29,14 @@ export async function indexTheDocument(filePath){
     });
 
     const texts = await textSplitter.splitText(docs[0].pageContent);
-    console.log(texts.length);
+
+    const documents = texts.map((chunk) => {
+        return {
+            pageContent: chunk,
+            metadata: docs[0].metadata,
+        }
+    });
+
+    await vectorStore.addDocuments(documents);
+    // console.log(documents);
 }
